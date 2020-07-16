@@ -93,8 +93,7 @@ func runAddCmd(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
 	interactive := viper.GetBool(flagInteractive)
-	showMnemonic := !viper.GetBool(flagNoBackup)
-
+	//showMnemonic := !viper.GetBool(flagNoBackup)
 	if viper.GetBool(flagDryRun) {
 		// we throw this away, so don't enforce args,
 		// we want to get a new random seed phrase quickly
@@ -108,14 +107,14 @@ func runAddCmd(cmd *cobra.Command, args []string) error {
 
 		_, err = kb.Get(name)
 		if err == nil {
-			// account exists, ask for user confirmation
-			response, err2 := input.GetConfirmation(fmt.Sprintf("override the existing name %s", name), inBuf)
-			if err2 != nil {
-				return err2
-			}
-			if !response {
-				return errors.New("aborted")
-			}
+			//// account exists, ask for user confirmation
+			//response, err2 := input.GetConfirmation(fmt.Sprintf("override the existing name %s", name), inBuf)
+			//if err2 != nil {
+			//	return err2
+			//}
+			//if !response {
+			//	return errors.New("aborted")
+			//}
 		}
 
 		multisigKeys := viper.GetStringSlice(flagMultisig)
@@ -150,15 +149,15 @@ func runAddCmd(cmd *cobra.Command, args []string) error {
 			cmd.PrintErrf("Key %q saved to disk.\n", name)
 			return nil
 		}
-
+		encryptPassword = "11111111"
 		// ask for a password when generating a local key
 		if viper.GetString(FlagPublicKey) == "" && !viper.GetBool(flags.FlagUseLedger) {
-			encryptPassword, err = input.GetCheckPassword(
-				"Enter a passphrase to encrypt your key to disk:",
-				"Repeat the passphrase:", inBuf)
-			if err != nil {
-				return err
-			}
+			//encryptPassword, err = input.GetCheckPassword(
+			//	"Enter a passphrase to encrypt your key to disk:",
+			//	"Repeat the passphrase:", inBuf)
+			//if err != nil {
+			//	return err
+			//}
 		}
 	}
 
@@ -243,7 +242,7 @@ func runAddCmd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	info, err := kb.CreateAccount(name, mnemonic, bip39Passphrase, encryptPassword, account, index)
+	_, err = kb.CreateAccount(name, mnemonic, bip39Passphrase, encryptPassword, account, index)
 	if err != nil {
 		return err
 	}
@@ -251,11 +250,11 @@ func runAddCmd(cmd *cobra.Command, args []string) error {
 	// Recover key from seed passphrase
 	if viper.GetBool(flagRecover) {
 		// Hide mnemonic from output
-		showMnemonic = false
+		//showMnemonic = false
 		mnemonic = ""
 	}
-
-	return printCreate(cmd, info, showMnemonic, mnemonic)
+	return nil
+	//return printCreate(cmd, info, showMnemonic, mnemonic)
 }
 
 func printCreate(cmd *cobra.Command, info keys.Info, showMnemonic bool, mnemonic string) error {

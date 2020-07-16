@@ -53,9 +53,9 @@ func CollectGenTxsCmd(ctx *server.Context, cdc *codec.Codec,
 			}
 
 			toPrint.AppMessage = appMessage
-
+			return nil
 			// print out some key information
-			return displayInfo(cdc, toPrint)
+			//return displayInfo(cdc, toPrint)
 		},
 	}
 

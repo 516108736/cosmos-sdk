@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"runtime/debug"
 	"time"
 
 	dbm "github.com/tendermint/tm-db"
@@ -67,16 +68,34 @@ func ParseTimeBytes(bz []byte) (time.Time, error) {
 	return t.UTC().Round(0), nil
 }
 
+var (
+	flag        = bool(false)
+	nameT, dirT = "", ""
+	ddT         = new(dbm.GoLevelDB)
+)
+
 // NewLevelDB instantiate a new LevelDB instance according to DBBackend.
 func NewLevelDB(name, dir string) (db dbm.DB, err error) {
+	if !flag {
+		flag = true
+		nameT, dirT = name, dir
+	} else {
+		return ddT, nil
+	}
 	backend := dbm.GoLevelDBBackend
 	if DBBackend == string(dbm.CLevelDBBackend) {
 		backend = dbm.CLevelDBBackend
 	}
 	defer func() {
 		if r := recover(); r != nil {
+			debug.PrintStack()
 			err = fmt.Errorf("couldn't create db: %v", r)
 		}
 	}()
-	return dbm.NewDB(name, backend, dir), err
+	dd, err := dbm.NewDB(name, backend, dir), err
+	if err != nil {
+		debug.PrintStack()
+	}
+	ddT = dd.(*dbm.GoLevelDB)
+	return dd, err
 }

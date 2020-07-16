@@ -2,6 +2,7 @@ package context
 
 import (
 	"fmt"
+	"github.com/tendermint/tendermint/types"
 
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -68,6 +69,22 @@ func (ctx CLIContext) BroadcastTxSync(txBytes []byte) (sdk.TxResponse, error) {
 
 	res, err := node.BroadcastTxSync(txBytes)
 	return sdk.NewResponseFormatBroadcastTx(res), err
+}
+
+func (ctx CLIContext) BroadcastTxSyncBatch(txs []types.Tx) ([]sdk.TxResponse, error) {
+	node, err := ctx.GetNode()
+	if err != nil {
+		return nil, err
+	}
+	res, err := node.BroadcastTxSyncBatch(txs)
+	if err != nil {
+		panic(err)
+	}
+	rr := make([]sdk.TxResponse, 0)
+	for _, v := range res {
+		rr = append(rr, sdk.NewResponseFormatBroadcastTx(v))
+	}
+	return rr, err
 }
 
 // BroadcastTxAsync broadcasts transaction bytes to a Tendermint node

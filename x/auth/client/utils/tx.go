@@ -4,11 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
-	"os"
-
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
+	"io/ioutil"
+	"os"
 
 	"github.com/cosmos/cosmos-sdk/client/context"
 	"github.com/cosmos/cosmos-sdk/client/flags"
@@ -38,6 +37,27 @@ func GenerateOrBroadcastMsgs(cliCtx context.CLIContext, txBldr authtypes.TxBuild
 	}
 
 	return CompleteAndBroadcastTxCLI(txBldr, cliCtx, msgs)
+}
+
+func CompleteTxCLIWithPassword(txBldr authtypes.TxBuilder, cliCtx context.CLIContext, msgs []sdk.Msg, passphrase string) ([][]byte, error) {
+	fromName := cliCtx.GetFromName()
+	lenTxs := len(msgs)
+
+	ans := make([][]byte, 0)
+	for index := 0; index < lenTxs; index++ {
+		// build and sign the transaction
+		if index != 0 {
+			txBldr = txBldr.WithSequence(txBldr.Sequence() + 1)
+		}
+
+		txBytes, err := txBldr.BuildAndSign(fromName, passphrase, []sdk.Msg{msgs[index]})
+		if err != nil {
+			return nil, err
+		}
+		ans = append(ans, txBytes)
+	}
+
+	return ans, nil
 }
 
 // CompleteAndBroadcastTxCLI implements a utility function that facilitates

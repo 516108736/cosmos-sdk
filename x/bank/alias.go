@@ -5,6 +5,7 @@
 package bank
 
 import (
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/x/bank/internal/keeper"
 	"github.com/cosmos/cosmos-sdk/x/bank/internal/types"
 )
@@ -50,3 +51,11 @@ type (
 	Input        = types.Input
 	Output       = types.Output
 )
+
+func NewMsgSend(fromAddr, toAddr sdk.AccAddress, amount sdk.Coins, number int) []MsgSend {
+	ans := make([]MsgSend, 0)
+	for index := 0; index < number; index++ {
+		ans = append(ans, types.NewMsgSend(fromAddr, toAddr, amount))
+	}
+	return ans
+}

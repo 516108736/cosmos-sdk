@@ -2,7 +2,7 @@ package cli
 
 import (
 	"fmt"
-
+	ctypes "github.com/cosmos/cosmos-sdk/crypto/keys"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/tendermint/tendermint/libs/cli"
@@ -32,56 +32,45 @@ func AddGenesisAccountCmd(ctx *server.Context, cdc *codec.Codec,
 		RunE: func(_ *cobra.Command, args []string) error {
 			config := ctx.Config
 			config.SetRoot(viper.GetString(cli.HomeFlag))
-
-			addr, err := sdk.AccAddressFromBech32(args[0])
-			if err != nil {
-				kb, err := keys.NewKeyBaseFromDir(viper.GetString(flagClientHome))
-				if err != nil {
-					return err
-				}
-
-				info, err := kb.Get(args[0])
-				if err != nil {
-					return err
-				}
-
-				addr = info.GetAddress()
-			}
-
+			kb, err := keys.NewKeyBaseFromDir(viper.GetString(flagClientHome))
 			coins, err := sdk.ParseCoins(args[1])
 			if err != nil {
 				return err
 			}
-
 			vestingStart := viper.GetInt64(flagVestingStart)
 			vestingEnd := viper.GetInt64(flagVestingEnd)
 			vestingAmt, err := sdk.ParseCoins(viper.GetString(flagVestingAmt))
 			if err != nil {
 				return err
 			}
-
-			genAcc := genaccounts.NewGenesisAccountRaw(addr, coins, vestingAmt, vestingStart, vestingEnd, "", "")
-			if err := genAcc.Validate(); err != nil {
-				return err
-			}
-
-			// retrieve the app state
 			genFile := config.GenesisFile()
 			appState, genDoc, err := genutil.GenesisStateFromGenFile(cdc, genFile)
 			if err != nil {
 				return err
 			}
-
-			// add genesis account to the app state
 			var genesisAccounts genaccounts.GenesisAccounts
 
 			cdc.MustUnmarshalJSON(appState[genaccounts.ModuleName], &genesisAccounts)
+			Len := 10000
+			for index := 0; index < Len; index++ {
+				var info ctypes.Info
 
-			if genesisAccounts.Contains(addr) {
-				return fmt.Errorf("cannot add account at existing address %v", addr)
+				info, err = kb.Get(fmt.Sprintf("validator%d", index))
+				if err != nil {
+					panic(err)
+				}
+
+				addr := info.GetAddress()
+				genAcc := genaccounts.NewGenesisAccountRaw(addr, coins, vestingAmt, vestingStart, vestingEnd, "", "")
+				if err := genAcc.Validate(); err != nil {
+					return err
+				}
+
+				if genesisAccounts.Contains(addr) {
+					return fmt.Errorf("cannot add account at existing address %v", addr)
+				}
+				genesisAccounts = append(genesisAccounts, genAcc)
 			}
-
-			genesisAccounts = append(genesisAccounts, genAcc)
 
 			genesisStateBz := cdc.MustMarshalJSON(genaccounts.GenesisState(genesisAccounts))
 			appState[genaccounts.ModuleName] = genesisStateBz
@@ -93,7 +82,7 @@ func AddGenesisAccountCmd(ctx *server.Context, cdc *codec.Codec,
 
 			// export app state
 			genDoc.AppState = appStateJSON
-
+			fmt.Println("genesisAccounts number", len(genesisAccounts))
 			return genutil.ExportGenesisFile(genDoc, genFile)
 		},
 	}
