@@ -1,7 +1,11 @@
 package auth
 
 import (
+	"encoding/hex"
 	"fmt"
+	"time"
+
+	"github.com/cosmos/cosmos-sdk/store/iavl"
 
 	"github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/libs/log"
@@ -74,13 +78,28 @@ func (ak AccountKeeper) NewAccount(ctx sdk.Context, acc exported.Account) export
 
 // GetAccount implements sdk.AccountKeeper.
 func (ak AccountKeeper) GetAccount(ctx sdk.Context, addr sdk.AccAddress) exported.Account {
+
 	store := ctx.KVStore(ak.key)
 	bz := store.Get(types.AddressStoreKey(addr))
 	if bz == nil {
+		panic("sb-GetAccount")
 		return nil
 	}
-	acc := ak.decodeAccount(bz)
+
+	acc := ak.DecodeAccount(bz)
 	return acc
+}
+
+func (ak AccountKeeper) GetAccounts(ctx sdk.Context, addrsLen int) []exported.Account {
+	store := ctx.KVStore(ak.key)
+	for index := 0; index < addrsLen; index++ {
+		bz := store.Get(types.AddressStoreKey(sdk.IntToAccAddress(index)))
+		if len(bz) == 0 {
+			fmt.Println("Idex", hex.EncodeToString(sdk.IntToAccAddress(index)), index)
+			panic("sb-GetAccounts")
+		}
+	}
+	return nil
 }
 
 // GetAllAccounts returns all accounts in the accountKeeper.
@@ -105,6 +124,33 @@ func (ak AccountKeeper) SetAccount(ctx sdk.Context, acc exported.Account) {
 	store.Set(types.AddressStoreKey(addr), bz)
 }
 
+
+func (ak AccountKeeper) SetAccounts(ctx sdk.Context, accList int, newCoin sdk.Coins) {
+	store := ctx.KVStore(ak.key)
+	ts := time.Now()
+	for index := 0; index < accList; index++ {
+		addr := sdk.AccAddress(sdk.IntToAccAddress(index))
+
+		acc := BaseAccount{
+			Address: addr,
+			Coins:   newCoin,
+		}
+		bz, err := ak.cdc.MarshalBinaryBare(acc)
+		if err != nil {
+			panic(err)
+		}
+		store.Set(types.AddressStoreKey(addr), bz)
+
+		if index != 0 && index%100000000 == 0 {
+			commitID := store.(*iavl.Store).Commit()
+			fmt.Println("SetAccounts commit index", index, hex.EncodeToString(commitID.Hash), time.Now().Sub(ts).Seconds())
+		}
+
+	}
+	store.(*iavl.Store).Commit()
+
+}
+
 // RemoveAccount removes an account for the account mapper store.
 // NOTE: this will cause supply invariant violation if called
 func (ak AccountKeeper) RemoveAccount(ctx sdk.Context, acc exported.Account) {
@@ -123,7 +169,7 @@ func (ak AccountKeeper) IterateAccounts(ctx sdk.Context, process func(exported.A
 			return
 		}
 		val := iter.Value()
-		acc := ak.decodeAccount(val)
+		acc := ak.DecodeAccount(val)
 		if process(acc) {
 			return
 		}
@@ -186,7 +232,7 @@ func (ak AccountKeeper) GetParams(ctx sdk.Context) (params types.Params) {
 // -----------------------------------------------------------------------------
 // Misc.
 
-func (ak AccountKeeper) decodeAccount(bz []byte) (acc exported.Account) {
+func (ak AccountKeeper) DecodeAccount(bz []byte) (acc exported.Account) {
 	err := ak.cdc.UnmarshalBinaryBare(bz, &acc)
 	if err != nil {
 		panic(err)

@@ -46,7 +46,18 @@ type App struct {
 // testing.
 func NewApp() *App {
 	logger := log.NewTMLogger(log.NewSyncWriter(os.Stdout)).With("module", "sdk/app")
-	db := dbm.NewMemDB()
+
+	var db dbm.DB
+
+	dirPath := "./default_trie_test.db"
+	err := os.RemoveAll(dirPath)
+	if err != nil {
+		panic(err)
+	}
+	db, err = dbm.NewGoLevelDB("trie_test", dirPath)
+	if err != nil {
+		panic(err)
+	}
 
 	// Create the cdc with some standard codecs
 	cdc := createCodec()

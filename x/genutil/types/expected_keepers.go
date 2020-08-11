@@ -19,6 +19,7 @@ type StakingKeeper interface {
 type AccountKeeper interface {
 	NewAccount(sdk.Context, authexported.Account) authexported.Account
 	SetAccount(sdk.Context, authexported.Account)
+	SetAccounts(ctx sdk.Context, accList []authexported.Account)
 	IterateAccounts(ctx sdk.Context, process func(authexported.Account) (stop bool))
 }
 

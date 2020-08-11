@@ -2,11 +2,14 @@ package types
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/tendermint/tendermint/crypto/tmhash"
 
 	"gopkg.in/yaml.v2"
 
@@ -109,6 +112,16 @@ func AccAddressFromHex(address string) (addr AccAddress, err error) {
 	}
 
 	return AccAddress(bz), nil
+}
+
+func IntToAccAddress(data int) AccAddress {
+	ret := make([]byte, 8)
+	binary.BigEndian.PutUint64(ret, uint64(data))
+	h := tmhash.New()
+	h.Write(ret)
+	hash := h.Sum(nil)
+
+	return hash[:20]
 }
 
 // VerifyAddressFormat verifies that the provided bytes form a valid address

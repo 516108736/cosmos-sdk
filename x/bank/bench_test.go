@@ -43,7 +43,7 @@ func getBenchmarkMockApp() (*mock.App, error) {
 	types.RegisterCodec(mapp.Cdc)
 
 	blacklistedAddrs := make(map[string]bool)
-	blacklistedAddrs[moduleAccAddr.String()] = true
+	//blacklistedAddrs[moduleAccAddr.String()] = true
 
 	bankKeeper := keeper.NewBaseKeeper(
 		mapp.AccountKeeper,

@@ -1,7 +1,14 @@
 package bank_test
 
 import (
+	"fmt"
+	"os"
 	"testing"
+	"time"
+
+	"github.com/magiconair/properties/assert"
+
+	dbm "github.com/tendermint/tm-db"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/x/auth"
@@ -41,10 +48,11 @@ var (
 	priv4 = secp256k1.GenPrivKey()
 	addr4 = sdk.AccAddress(priv4.PubKey().Address())
 
-	coins     = sdk.Coins{sdk.NewInt64Coin("foocoin", 10)}
-	halfCoins = sdk.Coins{sdk.NewInt64Coin("foocoin", 5)}
-	manyCoins = sdk.Coins{sdk.NewInt64Coin("foocoin", 1), sdk.NewInt64Coin("barcoin", 1)}
-	freeFee   = auth.NewStdFee(100000, sdk.Coins{sdk.NewInt64Coin("foocoin", 0)})
+	coins            = sdk.Coins{sdk.NewInt64Coin("foocoin", 10000)}
+	coinsForTrieInit = sdk.Coins{sdk.NewInt64Coin("foocoin", 10000)}
+	halfCoins        = sdk.Coins{sdk.NewInt64Coin("foocoin", 5)}
+	manyCoins        = sdk.Coins{sdk.NewInt64Coin("foocoin", 1), sdk.NewInt64Coin("barcoin", 1)}
+	freeFee          = auth.NewStdFee(100000, sdk.Coins{sdk.NewInt64Coin("foocoin", 0)})
 
 	sendMsg1 = types.NewMsgSend(addr1, addr2, coins)
 	sendMsg2 = types.NewMsgSend(addr1, moduleAccAddr, coins)
@@ -125,6 +133,95 @@ func TestSendNotEnoughBalance(t *testing.T) {
 
 	require.True(t, res2.GetAccountNumber() == origAccNum)
 	require.True(t, res2.GetSequence() == origSeq+1)
+}
+
+
+//go test -test.run TestTrue --timeout=10000m
+func TestTrue(t *testing.T) {
+	mapp := getMockApp(t)
+
+	initNumber := 1000 * 1000 * 100
+	updateNumber := 10000
+	fmt.Println("init account number=", initNumber, "get and update number=", updateNumber)
+
+	mock.SetGenesis(mapp, nil)
+	fmt.Println("set genesis end")
+
+	ctxCheck := mapp.BaseApp.NewContext(true, abci.Header{})
+	mapp.AccountKeeper.SetAccounts(ctxCheck, initNumber, coinsForTrieInit)
+
+	fmt.Println("SetAccount end")
+	assert.Equal(t, mapp.AccountKeeper.GetAccount(mapp.BaseApp.NewContext(true, abci.Header{}), sdk.IntToAccAddress(0)).GetCoins(), coinsForTrieInit)
+
+	ts := time.Now()
+	mapp.AccountKeeper.GetAccounts(ctxCheck, updateNumber)
+	fmt.Println("IAVL get end", "number", updateNumber, "time", time.Now().Sub(ts).Seconds())
+	assert.Equal(t, mapp.AccountKeeper.GetAccount(mapp.BaseApp.NewContext(true, abci.Header{}), sdk.IntToAccAddress(0)).GetCoins(), coinsForTrieInit)
+	ctxCheck = mapp.BaseApp.NewContext(true, abci.Header{})
+
+	ts = time.Now()
+	coinsForUpdate := sdk.Coins{sdk.NewInt64Coin("foocoin", 666666)}
+	mapp.AccountKeeper.SetAccounts(ctxCheck, updateNumber, coinsForUpdate)
+
+	fmt.Println("IAVL set end", "number", updateNumber, time.Now().Sub(ts).Seconds())
+	assert.Equal(t, mapp.AccountKeeper.GetAccount(mapp.BaseApp.NewContext(true, abci.Header{}), sdk.IntToAccAddress(0)).GetCoins(), coinsForUpdate)
+	mapp.GetDB().Print()
+
+	fmt.Println("============ fatedb test ============")
+	dirPath := "./scf_trie_test.db"
+	err := os.RemoveAll(dirPath)
+	if err != nil {
+		panic(err)
+	}
+	dbSCF, err := dbm.NewGoLevelDB("trie_test", dirPath)
+	if err != nil {
+		panic(err)
+	}
+
+	batch := dbSCF.NewBatch()
+	for index := 0; index < initNumber; index++ {
+		acc := auth.BaseAccount{
+			Address: sdk.IntToAccAddress(index),
+			Coins:   coinsForTrieInit,
+		}
+
+		bz, err := mapp.Cdc.MarshalBinaryBare(acc)
+		if err != nil {
+			panic(err)
+		}
+		batch.Set(auth.AddressStoreKey(acc.GetAddress()), bz)
+	}
+	batch.Write()
+
+	ts = time.Now()
+	for index := 0; index < updateNumber; index++ {
+		bz := dbSCF.Get(auth.AddressStoreKey(sdk.IntToAccAddress(index)))
+		if len(bz) == 0 {
+			panic("get failed index")
+		}
+	}
+	fmt.Println("FastDB get end", "number", updateNumber, "time", time.Now().Sub(ts).Seconds())
+	assert.Equal(t, mapp.AccountKeeper.DecodeAccount(dbSCF.Get(auth.AddressStoreKey(sdk.IntToAccAddress(0)))).GetCoins(), coinsForTrieInit)
+
+	ts = time.Now()
+	batch = dbSCF.NewBatch()
+	for index := 0; index < updateNumber; index++ {
+		addr := sdk.AccAddress(sdk.IntToAccAddress(index))
+		acc := auth.BaseAccount{
+			Address: addr,
+			Coins:   coinsForUpdate,
+		}
+
+		bz, err := mapp.Cdc.MarshalBinaryBare(acc)
+		if err != nil {
+			panic(err)
+		}
+		batch.Set(auth.AddressStoreKey(addr), bz)
+	}
+	batch.Write()
+	fmt.Println("IAVL set end", "number", updateNumber, time.Now().Sub(ts).Seconds())
+	assert.Equal(t, mapp.AccountKeeper.GetAccount(mapp.BaseApp.NewContext(true, abci.Header{}), sdk.IntToAccAddress(0)).GetCoins(), coinsForUpdate)
+	dbSCF.Print()
 }
 
 func TestSendToModuleAcc(t *testing.T) {
