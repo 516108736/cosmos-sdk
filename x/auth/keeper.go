@@ -164,7 +164,7 @@ func (ak AccountKeeper)SetAccounts(ctx sdk.Context,from int, to int,length int, 
 		if index != 0 && index%100000 == 0 {
 			fmt.Println("SetAccounts handle index",index,time.Now().Sub(ts).Seconds())
 		}
-		if index != 0 && index%1000000 == 0 {
+		if index != 0 && index%10000000 == 0 {
 			commitID := store.(*iavl.Store).Commit()
 			fmt.Println("SetAccounts commit index", index, hex.EncodeToString(commitID.Hash), time.Now().Sub(ts).Seconds())
 		}
