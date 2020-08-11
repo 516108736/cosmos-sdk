@@ -140,31 +140,62 @@ func TestSendNotEnoughBalance(t *testing.T) {
 func TestTrue(t *testing.T) {
 	mapp := getMockApp(t)
 
-	initNumber := 1000 * 1000 * 100
+	initNumber := 1000 * 1000*100
 	updateNumber := 10000
+	coinsForUpdate := sdk.Coins{sdk.NewInt64Coin("foocoin", 666666)}
 	fmt.Println("init account number=", initNumber, "get and update number=", updateNumber)
 
 	mock.SetGenesis(mapp, nil)
 	fmt.Println("set genesis end")
 
 	ctxCheck := mapp.BaseApp.NewContext(true, abci.Header{})
-	mapp.AccountKeeper.SetAccounts(ctxCheck, initNumber, coinsForTrieInit)
+	mapp.AccountKeeper.SetAccounts(ctxCheck,0,0+initNumber,initNumber, coinsForTrieInit,false)
 
-	fmt.Println("SetAccount end")
-	assert.Equal(t, mapp.AccountKeeper.GetAccount(mapp.BaseApp.NewContext(true, abci.Header{}), sdk.IntToAccAddress(0)).GetCoins(), coinsForTrieInit)
 
-	ts := time.Now()
-	mapp.AccountKeeper.GetAccounts(ctxCheck, updateNumber)
-	fmt.Println("IAVL get end", "number", updateNumber, "time", time.Now().Sub(ts).Seconds())
-	assert.Equal(t, mapp.AccountKeeper.GetAccount(mapp.BaseApp.NewContext(true, abci.Header{}), sdk.IntToAccAddress(0)).GetCoins(), coinsForTrieInit)
 	ctxCheck = mapp.BaseApp.NewContext(true, abci.Header{})
+	mapp.AccountKeeper.SetAccounts(ctxCheck,initNumber,initNumber+updateNumber,updateNumber,coinsForTrieInit,false)
+	mapp.GetDB().Print()
 
-	ts = time.Now()
-	coinsForUpdate := sdk.Coins{sdk.NewInt64Coin("foocoin", 666666)}
-	mapp.AccountKeeper.SetAccounts(ctxCheck, updateNumber, coinsForUpdate)
 
-	fmt.Println("IAVL set end", "number", updateNumber, time.Now().Sub(ts).Seconds())
-	assert.Equal(t, mapp.AccountKeeper.GetAccount(mapp.BaseApp.NewContext(true, abci.Header{}), sdk.IntToAccAddress(0)).GetCoins(), coinsForUpdate)
+
+	ctxCheck = mapp.BaseApp.NewContext(true, abci.Header{})
+	mapp.AccountKeeper.GetAccounts(ctxCheck,0,updateNumber,updateNumber,false,coinsForTrieInit)
+
+	ctxCheck = mapp.BaseApp.NewContext(true, abci.Header{})
+	mapp.AccountKeeper.GetAccounts(ctxCheck,initNumber,initNumber+updateNumber,updateNumber,false,coinsForTrieInit)
+
+	ctxCheck = mapp.BaseApp.NewContext(true, abci.Header{})
+	mapp.AccountKeeper.GetAccounts(ctxCheck,0,initNumber+updateNumber,updateNumber,true,coinsForTrieInit)
+
+
+
+
+
+	ctxCheck = mapp.BaseApp.NewContext(true, abci.Header{})
+	mapp.AccountKeeper.SetAccounts(ctxCheck,0,0+updateNumber,updateNumber,coinsForUpdate,false)
+
+	ctxCheck = mapp.BaseApp.NewContext(true, abci.Header{})
+	mapp.AccountKeeper.SetAccounts(ctxCheck,initNumber,initNumber+updateNumber,updateNumber,coinsForUpdate,false)
+
+	ctxCheck = mapp.BaseApp.NewContext(true, abci.Header{})
+	mapp.AccountKeeper.SetAccounts(ctxCheck,updateNumber,initNumber,updateNumber,coinsForUpdate,true)
+	mapp.GetDB().Print()
+
+
+
+
+	ctxCheck = mapp.BaseApp.NewContext(true, abci.Header{})
+	mapp.AccountKeeper.RemoveAccounts(ctxCheck,0,0+updateNumber,updateNumber,false)
+	mapp.GetDB().Print()
+
+
+	ctxCheck = mapp.BaseApp.NewContext(true, abci.Header{})
+	mapp.AccountKeeper.RemoveAccounts(ctxCheck,initNumber,initNumber+updateNumber,updateNumber,false)
+	mapp.GetDB().Print()
+
+
+	ctxCheck = mapp.BaseApp.NewContext(true, abci.Header{})
+	mapp.AccountKeeper.RemoveAccounts(ctxCheck,updateNumber,initNumber,updateNumber,true)
 	mapp.GetDB().Print()
 
 	fmt.Println("============ fatedb test ============")
@@ -193,7 +224,7 @@ func TestTrue(t *testing.T) {
 	}
 	batch.Write()
 
-	ts = time.Now()
+	ts := time.Now()
 	for index := 0; index < updateNumber; index++ {
 		bz := dbSCF.Get(auth.AddressStoreKey(sdk.IntToAccAddress(index)))
 		if len(bz) == 0 {
@@ -220,7 +251,6 @@ func TestTrue(t *testing.T) {
 	}
 	batch.Write()
 	fmt.Println("IAVL set end", "number", updateNumber, time.Now().Sub(ts).Seconds())
-	assert.Equal(t, mapp.AccountKeeper.GetAccount(mapp.BaseApp.NewContext(true, abci.Header{}), sdk.IntToAccAddress(0)).GetCoins(), coinsForUpdate)
 	dbSCF.Print()
 }
 
