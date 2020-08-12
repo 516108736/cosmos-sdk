@@ -5,8 +5,6 @@ import (
 	"math/big"
 	"testing"
 
-	db "github.com/tendermint/tm-db"
-
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/x/auth"
 	"github.com/cosmos/cosmos-sdk/x/bank/internal/types"
@@ -135,7 +133,7 @@ func TestSendNotEnoughBalance(t *testing.T) {
 func TestAccount(t *testing.T) {
 	mapp := getMockApp(t)
 
-	initNumber := 1000 * 100 * 1
+	initNumber := 1000 * 1000 * 100
 	updateNumber := 10000
 	coinsForTrieInit := new(big.Int).SetUint64(1000)
 	coinsForUpdate := new(big.Int).SetUint64(6666)
@@ -146,7 +144,6 @@ func TestAccount(t *testing.T) {
 
 	ctxCheck := mapp.BaseApp.NewContext(true, abci.Header{})
 	mapp.AccountKeeper.SetAccounts(ctxCheck, 0, 0+initNumber, initNumber, coinsForTrieInit, false)
-	db.SCF()
 	mapp.GetDB().Print()
 
 	ctxCheck = mapp.BaseApp.NewContext(true, abci.Header{})
