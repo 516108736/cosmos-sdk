@@ -29,4 +29,5 @@ require (
 	github.com/tendermint/tendermint v0.32.12
 	github.com/tendermint/tm-db v0.2.0
 	gopkg.in/yaml.v2 v2.2.7
+	github.com/ethereum/go-ethereum v1.8.20
 )

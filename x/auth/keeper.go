@@ -3,9 +3,13 @@ package auth
 import (
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"math/rand"
 	"time"
+
 	"github.com/cosmos/cosmos-sdk/store/iavl"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/rlp"
 
 	"github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/libs/log"
@@ -89,18 +93,18 @@ func (ak AccountKeeper) GetAccount(ctx sdk.Context, addr sdk.AccAddress) exporte
 	return acc
 }
 
-func (ak AccountKeeper) GetAccounts(ctx sdk.Context, from int,to int, length int,random bool,shouldCoins sdk.Coins) []exported.Account {
-	fmt.Println("IAVL GET Start  from",from,"to",to,"length",length,"random",random)
-	ts:=time.Now()
+func (ak AccountKeeper) GetAccounts(ctx sdk.Context, from int, to int, length int, random bool, shouldCoins *big.Int) []exported.Account {
+	fmt.Println("IAVL GET Start  from", from, "to", to, "length", length, "random", random)
+	ts := time.Now()
 	store := ctx.KVStore(ak.key)
-	data:=sdk.AccAddress{}
+	data := sdk.AccAddress{}
 	for index := 0; index < length; index++ {
-		ii:=index+from
-		if random{
-			ii=rand.Intn(to-from)+from
+		ii := index + from
+		if random {
+			ii = rand.Intn(to-from) + from
 		}
 
-		data=sdk.IntToAccAddress(ii)
+		data = sdk.IntToAccAddress(ii)
 		bz := store.Get(types.AddressStoreKey(sdk.IntToAccAddress(ii)))
 		if len(bz) == 0 {
 			fmt.Println("Idex", hex.EncodeToString(sdk.IntToAccAddress(ii)), ii)
@@ -108,11 +112,18 @@ func (ak AccountKeeper) GetAccounts(ctx sdk.Context, from int,to int, length int
 		}
 	}
 
-	if !ak.GetAccount(ctx,data).GetCoins().IsEqual(shouldCoins){
+	a := new(EthAccount)
+	bz := store.Get(types.AddressStoreKey(data))
+	err := rlp.DecodeBytes(bz, a)
+	if err != nil {
+		panic(err)
+	}
+
+	if a.Balance.Cmp(shouldCoins) != 0 {
 		fmt.Print("???????????")
 		panic("GetAccount check: should equal here")
 	}
-	fmt.Println("IAVL GET End ",time.Now().Sub(ts).Seconds())
+	fmt.Println("IAVL GET End ", time.Now().Sub(ts).Seconds())
 	return nil
 }
 
@@ -138,45 +149,49 @@ func (ak AccountKeeper) SetAccount(ctx sdk.Context, acc exported.Account) {
 	store.Set(types.AddressStoreKey(addr), bz)
 }
 
+type EthAccount struct {
+	Nonce    uint64
+	Balance  *big.Int
+	Root     common.Hash // merkle root of the storage trie
+	CodeHash []byte
+}
 
-func (ak AccountKeeper)SetAccounts(ctx sdk.Context,from int, to int,length int, newCoin sdk.Coins,random bool)  {
-	fmt.Println("IAVL UPDATE Start from",from,"to",to,"length",length,"random",random)
+func (ak AccountKeeper) SetAccounts(ctx sdk.Context, from int, to int, length int, newCoin *big.Int, random bool) {
+	fmt.Println("IAVL UPDATE Start from", from, "to", to, "length", length, "random", random)
 	store := ctx.KVStore(ak.key)
 	ts := time.Now()
-	data:=sdk.AccAddress{}
-	for index:=0;index<length;index++{
-		ii:=index+from
-		if random{
-			ii=rand.Intn(to-from)+from
+	data := sdk.AccAddress{}
+	for index := 0; index < length; index++ {
+		ii := index + from
+		if random {
+			ii = rand.Intn(to-from) + from
 		}
 		addr := sdk.AccAddress(sdk.IntToAccAddress(ii))
-		data=addr
-		acc := BaseAccount{
-			Address: addr,
-			Coins:   newCoin,
-		}
-		bz, err := ak.cdc.MarshalBinaryBare(acc)
+		data = addr
+
+		bz, err := rlp.EncodeToBytes(EthAccount{Balance: newCoin})
 		if err != nil {
 			panic(err)
 		}
+
 		store.Set(types.AddressStoreKey(addr), bz)
 
 		if index != 0 && index%100000 == 0 {
-			fmt.Println("SetAccounts handle index",index,time.Now().Sub(ts).Seconds())
+			fmt.Println("SetAccounts handle index", index, time.Now().Sub(ts).Seconds())
 		}
-		if index != 0 && index%10000000 == 0 {
+		if index != 0 && index%1000000 == 0 {
 			commitID := store.(*iavl.Store).Commit()
 			fmt.Println("SetAccounts commit index", index, hex.EncodeToString(commitID.Hash), time.Now().Sub(ts).Seconds())
 		}
 
 	}
 	store.(*iavl.Store).Commit()
-	fmt.Println("IAVL UPDATE End",time.Now().Sub(ts).Seconds())
-	if ak.GetAccount(ctx,data)==nil{
+	fmt.Println("IAVL UPDATE End", time.Now().Sub(ts).Seconds())
+
+	if len(store.Get(types.AddressStoreKey(data))) == 0 {
 		panic("SetAccounts check : should !=nil")
 	}
 }
-
 
 // RemoveAccount removes an account for the account mapper store.
 // NOTE: this will cause supply invariant violation if called
@@ -186,39 +201,34 @@ func (ak AccountKeeper) RemoveAccount(ctx sdk.Context, acc exported.Account) {
 	store.Delete(types.AddressStoreKey(addr))
 }
 
-
 // RemoveAccount removes an account for the account mapper store.
 // NOTE: this will cause supply invariant violation if called
-func (ak AccountKeeper) RemoveAccounts(ctx sdk.Context,from int,to int,length int ,random bool) {
-	ts:=time.Now()
-	fmt.Println("IAVL Delete  Start from",from,"to",to,"length",length,"random",random)
+func (ak AccountKeeper) RemoveAccounts(ctx sdk.Context, from int, to int, length int, random bool) {
+	ts := time.Now()
+	fmt.Println("IAVL Delete  Start from", from, "to", to, "length", length, "random", random)
 
-
-	data:=sdk.AccAddress{}
+	data := sdk.AccAddress{}
 
 	store := ctx.KVStore(ak.key)
 	for index := 0; index < length; index++ {
-		ii:=index+from
-		if random{
+		ii := index + from
+		if random {
 
-			ii=rand.Intn(to-from)+from
+			ii = rand.Intn(to-from) + from
 		}
 		addr := sdk.AccAddress(sdk.IntToAccAddress(ii))
-		data=addr
+		data = addr
 		store.Delete(types.AddressStoreKey(addr))
-
-
 
 	}
 	store.(*iavl.Store).Commit()
-	fmt.Println("IAVL Delete End",time.Now().Sub(ts).Seconds())
+	fmt.Println("IAVL Delete End", time.Now().Sub(ts).Seconds())
 
-	if ak.GetAccount(ctx,data)!=nil{
+	if ak.GetAccount(ctx, data) != nil {
 		panic("RemoveAccounts check: should nil here")
 	}
 
 }
-
 
 // IterateAccounts implements sdk.AccountKeeper.
 func (ak AccountKeeper) IterateAccounts(ctx sdk.Context, process func(exported.Account) (stop bool)) {
